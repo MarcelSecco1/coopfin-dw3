@@ -16,6 +16,14 @@ docker compose up --build
 
 Para interromper: `docker compose down`. Para remover também os dados locais do banco: `docker compose down -v`.
 
+Para acompanhar os logs dos serviços:
+
+```bash
+docker compose logs -f
+```
+
+Use `Ctrl+C` para sair da visualização dos logs.
+
 ## Rodar sem Docker
 
 1. Inicie um PostgreSQL e aplique `back-end/src/database/schema.sql`.
