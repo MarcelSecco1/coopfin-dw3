@@ -1,0 +1,52 @@
+### Login para obter o token
+# @name login
+POST http://localhost:4000/api/auth/login HTTP/1.1
+content-type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+###
+@token = {{login.response.body.$.token}}
+
+### Listar lançamentos
+GET http://localhost:4000/api/getAllLancamentos HTTP/1.1
+Authorization: Bearer {{token}}
+
+### Buscar lançamento por ID
+GET http://localhost:4000/api/getLancamentoByID/1 HTTP/1.1
+Authorization: Bearer {{token}}
+
+### Inserir lançamento
+POST http://localhost:4000/api/insertLancamento HTTP/1.1
+content-type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Mensalidade cooperado",
+  "valor": 250.00,
+  "natureza": "entrada",
+  "data": "2026-10-19",
+  "contaId": 1,
+  "status": "pendente"
+}
+
+### Atualizar lançamento
+PUT http://localhost:4000/api/updateLancamento/1 HTTP/1.1
+content-type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "descricao": "Mensalidade cooperado",
+  "valor": 250.00,
+  "natureza": "entrada",
+  "data": "2026-10-19",
+  "contaId": 1,
+  "status": "pago"
+}
+
+### Remover lançamento (exclusão lógica)
+DELETE http://localhost:4000/api/deleteLancamento/1 HTTP/1.1
+Authorization: Bearer {{token}}
