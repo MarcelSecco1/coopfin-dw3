@@ -6,7 +6,7 @@ const storedSession = () => {
 };
 const money = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 const dateLabel = (value) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 const getGreeting = () => {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12) return 'Bom dia';
@@ -82,6 +82,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [toast, setToast] = useState('');
   const [greeting, setGreeting] = useState(getGreeting);
 
@@ -97,6 +98,8 @@ function App() {
   }, [session]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { setError(''); }, [page]);
+  useEffect(() => { setFormError(''); }, [modal]);
   useEffect(() => { window.addEventListener('auth:expired', logout); return () => window.removeEventListener('auth:expired', logout); }, [logout]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 3200); return () => clearTimeout(timer); }, [toast]);
   useEffect(() => {
@@ -112,7 +115,7 @@ function App() {
   const summary = useMemo(() => {
     const paidIn = lancamentos.filter(item => item.status === 'pago' && item.natureza === 'entrada').reduce((sum, item) => sum + Number(item.valor), 0);
     const paidOut = lancamentos.filter(item => item.status === 'pago' && item.natureza === 'saida').reduce((sum, item) => sum + Number(item.valor), 0);
-    const pending = lancamentos.filter(item => item.status === 'pendente').reduce((sum, item) => sum + Number(item.valor), 0);
+    const pending = lancamentos.filter(item => item.status === 'pendente' && item.natureza === 'entrada').reduce((sum, item) => sum + Number(item.valor), 0);
     const balance = contas.reduce((sum, item) => sum + Number(item.saldoInicial), 0) + paidIn - paidOut;
     return { paidIn, pending, balance };
   }, [contas, lancamentos]);
@@ -125,13 +128,22 @@ function App() {
       if (modal.record?.id) await api.update(modal.record.id, modal.payload, session.token);
       else await api.insert(modal.payload, session.token);
       setModal(null); setToast(modal.record ? 'Alterações salvas.' : 'Cadastro realizado.'); await refresh();
-    } catch (e) { setError(e.message); }
+    } catch (e) { setFormError(e.message); }
     finally { setSaving(false); }
+  }
+
+  async function openEdit(kind, record) {
+    try {
+      const current = await (kind === 'conta' ? contasApi : lancamentosApi).getById(record.id, session.token);
+      setModal({ kind, record: current });
+    } catch (e) { await refresh(); setError(e.message); }
   }
 
   async function deleteRecord(kind, record) {
     const label = kind === 'conta' ? 'conta' : 'lançamento';
-    if (!window.confirm(`Remover ${label} “${kind === 'conta' ? record.nome : record.descricao}”?`)) return;
+    const linkedEntries = kind === 'conta' ? lancamentos.filter(item => item.contaId === record.id).length : 0;
+    const warning = linkedEntries ? ` ${linkedEntries === 1 ? 'O lançamento dela também será removido.' : `Os ${linkedEntries} lançamentos dela também serão removidos.`}` : '';
+    if (!window.confirm(`Remover ${label} “${kind === 'conta' ? record.nome : record.descricao}”?${warning}`)) return;
     try {
       await (kind === 'conta' ? contasApi : lancamentosApi).remove(record.id, session.token);
       setToast('Registro removido.'); await refresh();
@@ -158,15 +170,15 @@ function App() {
       <div className="page-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> SEU RESUMO FINANCEIRO</div><h1>{page === 'overview' ? `${greeting}, ${session.user?.username || 'cooperado'}.` : page === 'entries' ? 'Lançamentos' : 'Contas financeiras'}<span className="heading-period">{page === 'overview' ? 'Aqui está o panorama da sua cooperativa.' : page === 'entries' ? 'Acompanhe entradas e saídas da cooperativa.' : 'Organize os recursos da cooperativa.'}</span></h1></div><div className="heading-actions">{page === 'accounts' && <button className="button button-primary" onClick={() => setModal({ kind: 'conta' })}><Icon name="plus" size={18}/> Nova conta</button>}{page === 'entries' && <button className="button button-primary" onClick={() => setModal({ kind: 'lancamento' })}><Icon name="plus" size={18}/> Novo lançamento</button>}{page === 'overview' && <button className="button button-primary" onClick={() => setModal({ kind: 'lancamento' })}><Icon name="plus" size={18}/> Novo lançamento</button>}</div></div>
       {error && <div className="notice-error" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Fechar aviso"><Icon name="close" size={16}/></button></div>}
       {page === 'overview' && <>
-        <section className="metric-grid"><Metric label="Saldo em contas" value={money(summary.balance)} detail="Saldo inicial + entradas − saídas" icon="wallet" tone="green"/><Metric label="Entradas pagas" value={money(summary.paidIn)} detail="Recebimentos confirmados" icon="arrow" tone="blue"/><Metric label="A receber" value={money(summary.pending)} detail="Lançamentos pendentes" icon="calendar" tone="amber"/><Metric label="Contas ativas" value={String(contas.length).padStart(2, '0')} detail="Contas cadastradas" icon="grid" tone="lilac"/></section>
-        <section className="overview-grid"><div className="panel recent-panel"><div className="panel-heading"><div><h2>Movimentações recentes</h2><p>Últimos lançamentos registrados</p></div><button className="text-button" onClick={() => setPage('entries')}>Ver todos <Icon name="chevron" size={15}/></button></div><EntryTable entries={recent} loading={loading} onEdit={record => setModal({ kind: 'lancamento', record })} onDelete={record => deleteRecord('lancamento', record)}/></div>
+        <section className="metric-grid"><Metric label="Saldo em contas" value={money(summary.balance)} detail="Saldo inicial + entradas − saídas" icon="wallet" tone="green"/><Metric label="Entradas pagas" value={money(summary.paidIn)} detail="Recebimentos confirmados" icon="arrow" tone="blue"/><Metric label="A receber" value={money(summary.pending)} detail="Entradas pendentes" icon="calendar" tone="amber"/><Metric label="Contas ativas" value={String(contas.length).padStart(2, '0')} detail="Contas cadastradas" icon="grid" tone="lilac"/></section>
+        <section className="overview-grid"><div className="panel recent-panel"><div className="panel-heading"><div><h2>Movimentações recentes</h2><p>Últimos lançamentos registrados</p></div><button className="text-button" onClick={() => setPage('entries')}>Ver todos <Icon name="chevron" size={15}/></button></div><EntryTable entries={recent} loading={loading} onEdit={record => openEdit('lancamento', record)} onDelete={record => deleteRecord('lancamento', record)}/></div>
           <div className="panel accounts-panel"><div className="panel-heading"><div><h2>Suas contas</h2><p>{contas.length} contas ativas</p></div><button className="icon-button subtle" onClick={() => setPage('accounts')} aria-label="Ver contas"><Icon name="chevron"/></button></div>{contas.length === 0 ? <EmptyState title="Nenhuma conta cadastrada" text="Cadastre uma conta para começar." action="Adicionar conta" onAction={() => setModal({ kind: 'conta' })}/> : <div className="account-list">{contas.slice(0, 4).map(account => <div className="account-row" key={account.id}><div className="account-icon"><Icon name="wallet" size={18}/></div><div className="account-main"><strong>{account.nome}</strong><span>{typeNames[account.tipo]}{account.instituicao ? ` · ${account.instituicao}` : ''}</span></div><strong className="account-balance">{money(account.saldoInicial)}</strong></div>)}</div>}<button className="add-account" onClick={() => setModal({ kind: 'conta' })}><Icon name="plus" size={17}/> Adicionar conta</button></div></section>
         <div className="bottom-note"><div className="note-check"><Icon name="check" size={15}/></div><span>Seus dados estão sincronizados com segurança.</span><span className="note-divider"/> Atualizado agora</div>
       </>}
-      {page === 'entries' && <section className="panel list-panel"><div className="panel-heading table-heading"><div><h2>Todos os lançamentos</h2><p>{filteredEntries.length} registros encontrados</p></div><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar lançamento" aria-label="Buscar lançamento"/></div></div><EntryTable entries={filteredEntries} loading={loading} onEdit={record => setModal({ kind: 'lancamento', record })} onDelete={record => deleteRecord('lancamento', record)}/></section>}
-      {page === 'accounts' && <section className="panel list-panel"><div className="panel-heading table-heading"><div><h2>Todas as contas</h2><p>{filteredAccounts.length} contas encontradas</p></div><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar conta" aria-label="Buscar conta"/></div></div>{filteredAccounts.length === 0 && !loading ? <EmptyState title="Nenhuma conta encontrada" text="Cadastre sua primeira conta financeira." action="Adicionar conta" onAction={() => setModal({ kind: 'conta' })}/> : <div className="account-cards">{filteredAccounts.map(account => <article className="account-card" key={account.id}><div className="account-card-top"><div className="account-icon"><Icon name="wallet"/></div><span className="type-pill">{typeNames[account.tipo]}</span></div><h3>{account.nome}</h3><p>{account.instituicao || 'Sem instituição informada'}</p><strong>{money(account.saldoInicial)}</strong><div className="row-actions"><button onClick={() => setModal({ kind: 'conta', record: account })}><Icon name="edit" size={16}/> Editar</button><button className="danger-action" onClick={() => deleteRecord('conta', account)}><Icon name="trash" size={16}/> Remover</button></div></article>)}</div>}</section>}
+      {page === 'entries' && <section className="panel list-panel"><div className="panel-heading table-heading"><div><h2>Todos os lançamentos</h2><p>{filteredEntries.length} registros encontrados</p></div><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar lançamento" aria-label="Buscar lançamento"/></div></div><EntryTable entries={filteredEntries} loading={loading} onEdit={record => openEdit('lancamento', record)} onDelete={record => deleteRecord('lancamento', record)}/></section>}
+      {page === 'accounts' && <section className="panel list-panel"><div className="panel-heading table-heading"><div><h2>Todas as contas</h2><p>{filteredAccounts.length} contas encontradas</p></div><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar conta" aria-label="Buscar conta"/></div></div>{filteredAccounts.length === 0 && !loading ? <EmptyState title="Nenhuma conta encontrada" text="Cadastre sua primeira conta financeira." action="Adicionar conta" onAction={() => setModal({ kind: 'conta' })}/> : <div className="account-cards">{filteredAccounts.map(account => <article className="account-card" key={account.id}><div className="account-card-top"><div className="account-icon"><Icon name="wallet"/></div><span className="type-pill">{typeNames[account.tipo]}</span></div><h3>{account.nome}</h3><p>{account.instituicao || 'Sem instituição informada'}</p><strong>{money(account.saldoInicial)}</strong><div className="row-actions"><button onClick={() => openEdit('conta', account)}><Icon name="edit" size={16}/> Editar</button><button className="danger-action" onClick={() => deleteRecord('conta', account)}><Icon name="trash" size={16}/> Remover</button></div></article>)}</div>}</section>}
     </div><footer className="page-footer"><span>COOPFIN <span className="footer-dot">•</span> FINANÇAS COOPERATIVAS</span><span>DESENVOLVIDO PARA CUIDAR DO QUE É DE TODOS</span></footer></main>
-    {modal && <RecordModal key={`${modal.kind}-${modal.record?.id || 'new'}`} modal={modal} contas={contas} onClose={() => setModal(null)} onSave={saveRecord} saving={saving}/>}
+    {modal && <RecordModal key={`${modal.kind}-${modal.record?.id || 'new'}`} modal={modal} contas={contas} onClose={() => setModal(null)} onSave={saveRecord} saving={saving} error={formError}/>}
     {toast && <div className="toast" role="status"><span className="toast-check"><Icon name="check" size={16}/></span>{toast}</div>}
   </div>;
 }
@@ -185,7 +197,7 @@ function EmptyState({ title, text, action, onAction }) {
   return <div className="empty-state"><div className="empty-icon"><Icon name="wallet" size={23}/></div><h3>{title}</h3><p>{text}</p>{action && <button className="button button-secondary" onClick={onAction}><Icon name="plus" size={17}/>{action}</button>}</div>;
 }
 
-function RecordModal({ modal, contas, onClose, onSave, saving }) {
+function RecordModal({ modal, contas, onClose, onSave, saving, error }) {
   const isAccount = modal.kind === 'conta';
   const record = modal.record;
   const [form, setForm] = useState(isAccount ? {
@@ -198,7 +210,7 @@ function RecordModal({ modal, contas, onClose, onSave, saving }) {
     <form className="record-form" onSubmit={event => { event.preventDefault(); modal.payload = isAccount ? { ...form, saldoInicial: Number(form.saldoInicial || 0) } : { ...form, valor: Number(form.valor), contaId: Number(form.contaId) }; onSave(event); }}>
       {isAccount ? <><label>Nome da conta<input name="nome" value={form.nome} onChange={update} placeholder="Ex.: Conta movimento" required maxLength="120" autoFocus/></label><div className="form-grid"><label>Tipo<select name="tipo" value={form.tipo} onChange={update}><option value="corrente">Conta corrente</option><option value="poupanca">Poupança</option><option value="caixa">Caixa</option><option value="investimento">Investimentos</option></select></label><label>Saldo inicial<input name="saldoInicial" type="number" step="0.01" value={form.saldoInicial} onChange={update} placeholder="0,00" required/></label></div><label>Instituição financeira<input name="instituicao" value={form.instituicao} onChange={update} placeholder="Ex.: Banco Cooperativo" maxLength="120"/></label></>
       : <><label>Descrição<input name="descricao" value={form.descricao} onChange={update} placeholder="Ex.: Mensalidade cooperativa" required maxLength="180" autoFocus/></label><div className="form-grid"><label>Natureza<select name="natureza" value={form.natureza} onChange={update}><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label><label>Valor<input name="valor" type="number" min="0.01" step="0.01" value={form.valor} onChange={update} placeholder="0,00" required/></label></div><div className="form-grid"><label>Data<input name="data" type="date" value={form.data} onChange={update} required/></label><label>Status<select name="status" value={form.status} onChange={update}><option value="pendente">Pendente</option><option value="pago">Pago</option></select></label></div><label>Conta financeira<select name="contaId" value={form.contaId} onChange={update} required disabled={!contas.length}><option value="">Selecione uma conta</option>{contas.map(account => <option value={account.id} key={account.id}>{account.nome}</option>)}</select></label>{!contas.length && <div className="inline-hint">Cadastre uma conta financeira antes de adicionar lançamentos.</div>}</>}
-      <div className="modal-footer"><button type="button" className="button button-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving || (!isAccount && !contas.length)}>{saving ? 'Salvando…' : record ? 'Salvar alterações' : 'Salvar registro'}</button></div>
+      {error && <div className="form-error" role="alert">{error}</div>}<div className="modal-footer"><button type="button" className="button button-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving || (!isAccount && !contas.length)}>{saving ? 'Salvando…' : record ? 'Salvar alterações' : 'Salvar registro'}</button></div>
     </form>
   </Modal>;
 }

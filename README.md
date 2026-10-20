@@ -44,7 +44,7 @@ Base URL: `/api`. `POST /auth/login` é público. Endpoints restantes exigem JWT
 
 | Recurso | Listar | Buscar por ID | Inserir | Atualizar | Excluir |
 |---|---|---|---|---|---|
-| Contas | `GET /contas` | `GET /contas/:id` | `POST /contas` | `PUT /contas/:id` | `DELETE /contas/:id` |
-| Lançamentos | `GET /lancamentos` | `GET /lancamentos/:id` | `POST /lancamentos` | `PUT /lancamentos/:id` | `DELETE /lancamentos/:id` |
+| Contas | `GET /getAllContas` | `GET /getContaByID/:id` | `POST /insertConta` | `PUT /updateConta/:id` | `DELETE /deleteConta/:id` |
+| Lançamentos | `GET /getAllLancamentos` | `GET /getLancamentoByID/:id` | `POST /insertLancamento` | `PUT /updateLancamento/:id` | `DELETE /deleteLancamento/:id` |
 
 Na atualização e inserção, contas recebem `nome`, `tipo`, `instituicao` e `saldoInicial`; lançamentos recebem `descricao`, `valor`, `natureza` (`entrada` ou `saida`), `data`, `contaId` e `status`.

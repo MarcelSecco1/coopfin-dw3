@@ -1,0 +1,48 @@
+### Login para obter o token
+# @name login
+POST http://localhost:4000/api/auth/login HTTP/1.1
+content-type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+###
+@token = {{login.response.body.$.token}}
+
+### Listar contas
+GET http://localhost:4000/api/getAllContas HTTP/1.1
+Authorization: Bearer {{token}}
+
+### Buscar conta por ID
+GET http://localhost:4000/api/getContaByID/1 HTTP/1.1
+Authorization: Bearer {{token}}
+
+### Inserir conta
+POST http://localhost:4000/api/insertConta HTTP/1.1
+content-type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Conta movimento",
+  "tipo": "corrente",
+  "instituicao": "Banco Cooperativo",
+  "saldoInicial": 1500.50
+}
+
+### Atualizar conta
+PUT http://localhost:4000/api/updateConta/1 HTTP/1.1
+content-type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nome": "Conta movimento principal",
+  "tipo": "corrente",
+  "instituicao": "Banco Cooperativo",
+  "saldoInicial": 2000
+}
+
+### Remover conta (exclusão lógica)
+DELETE http://localhost:4000/api/deleteConta/1 HTTP/1.1
+Authorization: Bearer {{token}}

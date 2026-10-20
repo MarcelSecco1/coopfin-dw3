@@ -10,8 +10,8 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'coopfin-api' }));
 app.use('/api/auth', authRouter);
-app.use('/api/contas', contasRouter);
-app.use('/api/lancamentos', lancamentosRouter);
+app.use('/api', contasRouter);
+app.use('/api', lancamentosRouter);
 app.use((_req, res) => res.status(404).json({ message: 'Rota não encontrada.' }));
 app.use((error, _req, res, _next) => {
   console.error(error);

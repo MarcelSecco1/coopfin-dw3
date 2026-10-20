@@ -1,0 +1,23 @@
+### Login com credenciais válidas
+POST http://localhost:4000/api/auth/login HTTP/1.1
+content-type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### Login com senha incorreta
+POST http://localhost:4000/api/auth/login HTTP/1.1
+content-type: application/json
+
+{
+  "username": "admin",
+  "password": "senha-errada"
+}
+
+### Login sem informar os dados
+POST http://localhost:4000/api/auth/login HTTP/1.1
+content-type: application/json
+
+{}
