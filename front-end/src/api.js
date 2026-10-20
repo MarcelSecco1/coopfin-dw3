@@ -17,13 +17,17 @@ export const login = (username, password) => request('/auth/login', {
   method: 'POST', body: JSON.stringify({ username, password }),
 });
 
-const resource = (path) => ({
-  getAll: (token) => request(path, { token }),
-  getById: (id, token) => request(`${path}/${id}`, { token }),
-  insert: (data, token) => request(path, { method: 'POST', body: JSON.stringify(data), token }),
-  update: (id, data, token) => request(`${path}/${id}`, { method: 'PUT', body: JSON.stringify(data), token }),
-  remove: (id, token) => request(`${path}/${id}`, { method: 'DELETE', token }),
-});
+export const getAllContas = (token) => request('/getAllContas', { token });
+export const getContaByID = (id, token) => request(`/getContaByID/${id}`, { token });
+export const insertConta = (data, token) => request('/insertConta', { method: 'POST', body: JSON.stringify(data), token });
+export const updateConta = (id, data, token) => request(`/updateConta/${id}`, { method: 'PUT', body: JSON.stringify(data), token });
+export const deleteConta = (id, token) => request(`/deleteConta/${id}`, { method: 'DELETE', token });
 
-export const contasApi = resource('/contas');
-export const lancamentosApi = resource('/lancamentos');
+export const getAllLancamentos = (token) => request('/getAllLancamentos', { token });
+export const getLancamentoByID = (id, token) => request(`/getLancamentoByID/${id}`, { token });
+export const insertLancamento = (data, token) => request('/insertLancamento', { method: 'POST', body: JSON.stringify(data), token });
+export const updateLancamento = (id, data, token) => request(`/updateLancamento/${id}`, { method: 'PUT', body: JSON.stringify(data), token });
+export const deleteLancamento = (id, token) => request(`/deleteLancamento/${id}`, { method: 'DELETE', token });
+
+export const contasApi = { getAll: getAllContas, getById: getContaByID, insert: insertConta, update: updateConta, remove: deleteConta };
+export const lancamentosApi = { getAll: getAllLancamentos, getById: getLancamentoByID, insert: insertLancamento, update: updateLancamento, remove: deleteLancamento };
